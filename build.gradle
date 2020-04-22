@@ -1,27 +1,17 @@
-
-buildscript {
-	repositories {
-		jcenter()
-	}
-	dependencies {
-		classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:0.5'
-	}
+plugins {
+	id 'groovy'
+	id 'maven-publish'
+	id 'signing'
+//	id 'eclipse'
+	id "com.jfrog.bintray" version "1.8.5"
 }
-
-apply plugin: 'groovy'
-apply plugin: 'maven'
-apply plugin: 'signing'
-apply plugin: 'eclipse'
-apply plugin: 'com.jfrog.bintray'
-apply plugin: 'maven-publish'
-
 
 repositories {
 	jcenter()
 }
 
 group = 'org.standardout'
-version = '1.8.0-SNAPSHOT'
+version = '1.9.0-SNAPSHOT'
 
 sourceCompatibility = '1.7'
 targetCompatibility = '1.7'
@@ -34,127 +24,33 @@ jar {
 }
 
 dependencies {
-	compile gradleApi()
-	compile 'biz.aQute.bnd:biz.aQute.bndlib:3.5.0'
-	compile 'org.osgi:osgi.core:6.0.0'
-	compile 'commons-io:commons-io:2.4'
-	compile 'de.undercouch:gradle-download-task:3.1.1'
-	compile localGroovy()
-}
-
-task wrapper(type: Wrapper) {
-	gradleVersion = '4.6'
+	implementation gradleApi()
+	implementation localGroovy()
+	implementation 'biz.aQute.bnd:biz.aQute.bndlib:5.0.1'
+	implementation 'org.osgi:osgi.core:6.0.0'
+	implementation 'commons-io:commons-io:2.6'
+	implementation 'de.undercouch:gradle-download-task:4.0.4'
 }
 
 // package groovydoc into a jar file
 task packageJavadoc(type: Jar, dependsOn: 'groovydoc') {
 	from groovydoc.destinationDir
-	classifier = 'javadoc'
+	archiveClassifier.set('javadoc')
 }
 
 // package source into a jar file
 task packageSources(type: Jar) {
 	from sourceSets.main.allSource
-	classifier = 'sources'
-}
-
-// define artifacts for upload
-artifacts {
-	archives jar
-	archives packageJavadoc
-	archives packageSources
-}
-
-def configurePom(def pom) {
-	// ensure correct artifact ID
-	pom.artifactId = 'bnd-platform'
-	
-	// pom file details
-	pom.project {
-	   name 'bnd-platform'
-	   packaging 'jar'
-	   description 'Build OSGi bundles and Eclipse Update Sites from existing JARs, e.g. from Maven repositories (Plugin for Gradle)'
-	   url 'https://github.com/stempler/bnd-platform'
-
-	   scm {
-		   url 'scm:git:https://github.com/stempler/bnd-platform.git'
-		   connection 'scm:git:https://github.com/stempler/bnd-platform.git'
-		   developerConnection 'scm:git:https://github.com/stempler/bnd-platform.git'
-	   }
-
-	   licenses {
-		   license {
-			   name 'The Apache Software License, Version 2.0'
-			   url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-			   distribution 'repo'
-		   }
-	   }
-
-	   developers {
-		   developer {
-			   id 'stempler'
-			   name 'Simon Templer'
-			   email 'simon@templer.cc'
-		   }
-	   }
-   }
-}
-
-install {
-	repositories.mavenInstaller {
-		// ensure correct artifact ID when installing locally
-		configurePom(pom)
-	}
-}
-
-// sign all artifacts
-signing {
-	required {
-		// NOTE: skipping does only work if no gradle properties specifying the key are present
-		gradle.taskGraph.hasTask('uploadArchives')
-	}
-	sign configurations.archives
-}
-
-uploadArchives {
-	repositories {
-		mavenDeployer {
-			// sign artifacts before upload
-			beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-			
-			// upload to sonatype OSS (snapshot/release)
-			repository(url: this.version.endsWith('-SNAPSHOT') ?
-					'https://oss.sonatype.org/content/repositories/snapshots' :
-					'https://oss.sonatype.org/service/local/staging/deploy/maven2') {
-				authentication(userName: this.hasProperty('sonatypeUsername') ? sonatypeUsername : '',
-					password: this.hasProperty('sonatypePassword') ? sonatypePassword : '')
-			}
-			
-			configurePom(pom)
-		}
-	}
-}
-
-// groovydoc task work-around
-
-configurations {
-	jansi.extendsFrom(runtime)
-}
-groovydoc {
-	groovyClasspath = project.configurations.jansi
-}
-dependencies {
-	jansi 'org.fusesource.jansi:jansi:1.11'
+	archiveClassifier.set('sources')
 }
 
 // bintray
-
 bintray { // task bintrayUpload
 	user = project.getProperty('bintrayUser')
 	key = project.getProperty('bintrayApiKey')
 
-	configurations = ['archives']
-	
+	publications = ['mavenJava']
+
 	dryRun = false
 	publish = !project.version.endsWith('-SNAPSHOT')
 	pkg {
@@ -179,12 +75,75 @@ bintray { // task bintrayUpload
 
 publishing {
     publications {
-        MyPublication(MavenPublication) {
-            from components.java
-            groupId "${group}"
-            artifactId 'bnd-platform'
-            version "${version}"
+		mavenJava(MavenPublication) {
+			from components.java
+			artifact packageJavadoc
+			artifact packageSources
+			pom {
+				name = 'bnd-platform'
+				description = 'Build OSGi bundles and Eclipse Update Sites from existing JARs, e.g. from Maven repositories (Plugin for Gradle)'
+				url = 'https://github.com/stempler/bnd-platform'
+
+				scm {
+					url = 'scm:git:https://github.com/stempler/bnd-platform.git'
+					connection = 'scm:git:https://github.com/stempler/bnd-platform.git'
+					developerConnection = 'scm:git:https://github.com/stempler/bnd-platform.git'
+				}
+
+				licenses {
+					license {
+						name = 'The Apache Software License, Version 2.0'
+						url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+						distribution = 'repo'
+					}
+				}
+
+				developers {
+					developer {
+						id = 'stempler'
+						name ='Simon Templer'
+						email = 'simon@templer.cc'
+					}
+				}
+			}
         }
     }
+
+	repositories {
+		maven {
+			name = 'Github'
+			url = "https://maven.pkg.github.com/$githubUsername/bnd-platform"
+			credentials {
+				username = githubUsername
+				password = githubToken ?: System.getenv("GITHUB_TOKEN")
+			}
+		}
+		maven {
+			name = 'MavenCentral'
+			def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2"
+			def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots"
+			url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+			credentials {
+				username = "$sonatypeUsername"
+				password = "$sonatypePassword"
+			}
+		}
+	}
 }
+
+afterEvaluate {
+	tasks.withType(PublishToMavenRepository) {
+		onlyIf {
+			(repository != publishing.repositories.Github) || (githubUsername)
+		}
+	}
+}
+
+signing {
+	required {
+		gradle.taskGraph.hasTask(':publishMavenJavaPublicationToMavenCentralRepository')
+	}
+	sign publishing.publications.mavenJava
+}
+
 
